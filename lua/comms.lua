@@ -53,6 +53,13 @@ local function ensure_peer_closed(port)
 	G.role.peers[port] = nil
 end
 
+local function reset_peer_timer(port)
+	ensure_peer_closed(port)
+	G.role.peers[port] = uv.set_timeout(HEARTBEAT_TIMEOUT, function()
+		G.role.peers[port] = nil
+	end)
+end
+
 local function new_leader_role(socket)
 	return {
 		role = M.role.leader,
@@ -83,16 +90,8 @@ local function on_open_task(payload)
 end
 
 local function on_ping(port)
-	ensure_peer_closed(port)
-	G.role.peers[port] = uv.set_timeout(HEARTBEAT_TIMEOUT, function()
-		G.role.peers[port] = nil
-	end)
-	G.role.socket:send(command.pack_pong_frame(uv.now()), G.HOST, port, function(send_err)
-		if send_err ~= nil then
-			ensure_peer_closed(port)
-			logger.debug(send_err)
-		end
-	end)
+	reset_peer_timer(port)
+	send_frame_to_peer(port, command.pack_pong_frame(uv.now()))
 end
 
 local function on_leader_command(cmd_id, payload, port)
