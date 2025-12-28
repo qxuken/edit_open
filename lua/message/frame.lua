@@ -1,19 +1,32 @@
+--- Frame protocol module for binary message framing.
+--- Frame format: MAGIC(9) | VERSION(u8) | MESSAGE_TYPE(u8) | LENGTH(u16) | DATA
+--- @class FrameModule
+
 local logger = require("lua.logger")
 local encode = require("lua.message.encode")
 
 -- Protocol constants
+--- @type string Magic bytes for frame identification
 local MAGIC = "EO_QMGC25"
+--- @type integer Length of magic bytes
 local MAGIC_LEN = #MAGIC
+--- @type integer Protocol version
 local VERSION = 1
+--- @type string Encoded version byte
 local VERSION_ENC = encode.u8(VERSION)
 
 -- Minimum bytes needed to parse the fixed header:
 -- MAGIC(9) | VERSION(u8) | MESSAGE_TYPE(u8) | LENGTH(u16)
+--- @type integer Minimum frame size in bytes
 local MIN_FRAME = MAGIC_LEN + 1 + 1 + 2
 
+--- @class FrameModule
 local M = {}
 
--- Build a frame: MAGIC | VERSION(u8) | MESSAGE_TYPE(u8) | LENGTH(u16 BE) | DATA
+--- Build a frame: MAGIC | VERSION(u8) | MESSAGE_TYPE(u8) | LENGTH(u16 BE) | DATA
+--- @param msg_type integer The message type identifier
+--- @param data string The payload data to include in the frame
+--- @return string frame The complete binary frame
 function M.pack(msg_type, data)
 	assert(type(msg_type) == "number", "command must be an integer")
 	assert(type(data) == "string", "data must be a string")
@@ -29,7 +42,12 @@ function M.pack(msg_type, data)
 	})
 end
 
--- Parse a frame; returns: message_type, data, err
+--- Parse a frame from binary buffer
+--- @param buf string The binary buffer to parse
+--- @param off integer? Starting offset (1-based, defaults to 1)
+--- @return integer msg_type The message type identifier (0 on error)
+--- @return string? data The extracted payload data, or nil on error
+--- @return string? err Error message if parsing failed
 function M.unpack(buf, off)
 	off = off or 1
 	if type(buf) ~= "string" then
