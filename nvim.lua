@@ -1,9 +1,11 @@
 local uv = require("lua.uv_wrapper")
 local logger = require("lua.logger")
+local tasks = require("lua.tasks.mod")
 local comms = require("lua.comms")
 
 logger.set_printer(function(level, message)
 	vim.notify(message, level)
 end)
 uv.init(vim.uv)
+tasks.setup()
 comms.run_comms()

@@ -2,6 +2,7 @@ local G = require("lua.G")
 local logger = require("lua.logger")
 local uv = require("lua.uv_wrapper")
 local message = require("lua.message.mod")
+local tasks = require("lua.tasks.mod")
 
 local M = {}
 
@@ -16,23 +17,27 @@ M.role = {
 	leader = 2,
 }
 
-local CANDIDTATE_ROLE = {
+local CANDIDATE_ROLE = {
 	id = M.role.candidate,
 }
-G.role = CANDIDTATE_ROLE
+G.role = CANDIDATE_ROLE
 G.last_command_id = 0
 
 function M.cleanup_role_and_shutdown_socket()
 	if not G.role then
-		G.role = CANDIDTATE_ROLE
+		G.role = CANDIDATE_ROLE
+		G.role.tasks = {}
 		return
 	end
+
 	if G.role.id == M.role.candidate then
 		return
 	end
 
+	G.role.tasks = {}
 	G.role.socket:recv_stop()
 	if G.role.id == M.role.leader then
+
 		for port, timer in pairs(G.role.peers) do
 			uv.clear_interval(timer)
 			G.role.peers[port] = nil
@@ -42,7 +47,7 @@ function M.cleanup_role_and_shutdown_socket()
 		G.role.heartbeat_timer:close()
 	end
 	G.role.socket:close()
-	G.role = CANDIDTATE_ROLE
+	G.role = CANDIDATE_ROLE
 end
 
 local function ensure_peer_closed(port)
@@ -62,6 +67,7 @@ end
 
 local function new_leader_role(socket)
 	return {
+		id = M.role.leader,
 		role = M.role.leader,
 		socket = socket,
 		peers = {},
@@ -82,10 +88,9 @@ local function on_task_dispatch(payload)
 	uv.fstat(payload.path, function(err, stat)
 		if not err and stat.type == "file" then
 			logger.info("Openning" .. payload.path)
-		else
-			for port in pairs(G.role.peers) do
-			end
+			return
 		end
+		logger.warn("Unable to open path " .. payload.path .. (err and (": " .. err) or ""))
 	end)
 end
 
@@ -104,6 +109,7 @@ end
 
 local function new_follower_role(socket, timer)
 	return {
+		id = M.role.follower,
 		role = M.role.follower,
 		socket = socket,
 		heartbeat_timer = timer,
