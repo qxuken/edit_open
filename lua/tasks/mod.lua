@@ -1,6 +1,6 @@
-local M = {}
+local G = require("lua.G")
 
-M.registry = {}
+local M = {}
 
 local function ensure_task_module(task)
 	assert(type(task) == "table", "task module must be a table")
@@ -11,19 +11,19 @@ end
 
 function M.register(task)
 	ensure_task_module(task)
-	if M.registry[task.id] then
+	if G.command_registry[task.id] then
 		error("task id already registered: " .. task.id)
 	end
-	M.registry[task.id] = task
+	G.command_registry[task.id] = task
 	return task
 end
 
 function M.get(task_id)
-	return M.registry[task_id]
+	return G.command_registry[task_id]
 end
 
 function M.setup()
-	M.registry = {}
+	G.command_registry = {}
 	local openfile = require("lua.tasks.openfile")
 	M.register(openfile)
 end

@@ -1,5 +1,4 @@
 local encode = require("lua.message.encode")
-local encode = require("lua.message.encode")
 local logger = require("lua.logger")
 local uv = require("lua.uv_wrapper")
 
@@ -20,16 +19,15 @@ end
 
 function M.encode(payload)
 	validate_payload(payload)
-	local path_data, err = encode.pack_str_u16(payload.path)
+	local path_data, row_data, col_data, err
+	path_data, err = encode.pack_str_u16(payload.path)
 	if not path_data then
 		return pack_or_error(err)
 	end
-	local row_data
 	row_data, err = encode.u32(payload.row)
 	if not row_data then
 		return pack_or_error(err)
 	end
-	local col_data
 	col_data, err = encode.u32(payload.col)
 	if not col_data then
 		return pack_or_error(err)
@@ -41,19 +39,16 @@ function M.decode(data)
 	if type(data) ~= "string" then
 		return nil, "payload must be string"
 	end
+	local path, row, col, err
 	local off = 1
-	local err
-	local path
 	path, off, err = encode.unpack_str_u16(data, off)
 	if not path then
 		return nil, err
 	end
-	local row
 	row, off, err = encode.unpack_u32(data, off)
 	if not row then
 		return nil, err
 	end
-	local col
 	col, off, err = encode.unpack_u32(data, off)
 	if not col then
 		return nil, err
