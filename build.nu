@@ -8,10 +8,9 @@ const windows_out = $out_dir | path join "main.exe"
 const posix_out = $out_dir | path join "main"
 
 def compiler [] {
-	if "CC" in $env {
-		$env.CC
-	} else if (which cc | is-not-empty) {
-		"cc"
+	let cenv = $env | get -o CC | default "clang"
+	if $cenv =~ "clang" {
+		$cenv
 	} else {
 		"clang"
 	}
