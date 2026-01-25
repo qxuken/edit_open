@@ -23,9 +23,9 @@ when ODIN_OS == .Windows {
 		"windows/luv.lib",
 	}
 } else when ODIN_OS == .Linux && ODIN_ARCH == .amd64 {
-	foreign import lib {"linux/libuv.a", "linux/luv.a"}
+	foreign import lib {"linux/libluv.a", "linux/libuv.a",}
 } else when ODIN_OS == .Darwin && ODIN_ARCH == .arm64 {
-	foreign import lib {"darwin/libuv.a", "darwin/luv.a"}
+	foreign import lib {"darwin/libluv.a", "darwin/libuv.a"}
 } else {
 	foreign import lib {"system:uv", "system:luv"}
 }
