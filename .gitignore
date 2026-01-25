@@ -1,6 +1,5 @@
 .DS_Store
-dist
-build
+*.dSYM
+
 edit_open.exe
-target
 edit_open
