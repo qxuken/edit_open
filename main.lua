@@ -14,7 +14,7 @@ uv.shutdown(comms.cleanup_role_and_shutdown_socket)
 
 local sigint = luv.new_signal()
 luv.signal_start(sigint, "sigint", function(signal)
-	print("Caught SIGINT, shutting down...")
+	print("SIGINT, shutting down...")
 	luv.stop()
 end)
 

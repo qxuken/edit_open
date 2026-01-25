@@ -8,16 +8,17 @@ import "deps/luajit"
 import "deps/luv"
 import "deps/uv"
 
-lua_run :: proc(src: cstring = "main.lua") {
+lua_run :: proc(src: cstring) {
 	_context := context
-	state := luajit.newstate(luajit.odin_allocator, &_context)
+	state := luajit.open(luajit.odin_allocator, &_context)
 	ensure(state != nil)
 	defer luajit.close(state)
 
 	luajit.L_openlibs(state)
 	luajit.preload_library(state, "luv", luv.luaopen_luv)
+	luajit.setup_args(state)
 
-	if (luajit.L_dofile(state, cstring(src)) != 0) {
+	if (luajit.L_dofile(state, src) != 0) {
 		fmt.println(luajit.tostring(state, -1))
 		luajit.pop(state, 1)
 		os.exit(1)
@@ -27,7 +28,6 @@ lua_run :: proc(src: cstring = "main.lua") {
 when ODIN_DEBUG {
 	track: mem.Tracking_Allocator
 	report_allocations :: proc() {
-		fmt.println("exit")
 		for _, leak in track.allocation_map {
 			fmt.printf("%v leaked %m\n", leak.location, leak.size)
 		}
@@ -42,5 +42,9 @@ main :: proc() {
 		defer report_allocations()
 	}
 	uv.setup()
-	lua_run()
+	entry: cstring = "main.lua"
+	if len(runtime.args__) > 1 {
+		entry = runtime.args__[1]
+	}
+	lua_run(entry)
 }

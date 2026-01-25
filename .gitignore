@@ -1,5 +1,6 @@
 .DS_Store
 *.dSYM
+*.pdb
 
 edit_open.exe
 edit_open

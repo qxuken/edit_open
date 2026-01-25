@@ -30,3 +30,12 @@ preload_library :: proc(state: ^State, name: cstring, open_proc: CFunction) {
 	setfield(state, -2, name)
 	pop(state, 2)
 }
+
+setup_args :: proc(state: ^State) {
+	newtable(state)
+	for arg, i in runtime.args__ {
+		pushstring(state, arg)
+		rawseti(state, -2, cast(c.int)i + 1)
+	}
+	setglobal(state, "arg")
+}
