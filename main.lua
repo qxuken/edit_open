@@ -5,7 +5,7 @@
 local luv = require("luv")
 local uv = require("lua.uv_wrapper")
 local tasks = require("lua.tasks.mod")
-local comms = require("lua.comms")
+local comms = require("lua.comms.mod")
 
 -- Initialize libuv wrapper with luv module
 uv.init(luv)

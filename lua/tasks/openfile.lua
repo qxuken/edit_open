@@ -102,4 +102,6 @@ function M.execute(payload)
 	-- TODO: integrate with editor (vim.cmd, etc.)
 end
 
+-- TODO: add a fallback function in case cluster failed to execute, example: start wezterm with nvim <file>
+
 return M

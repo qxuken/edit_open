@@ -20,12 +20,16 @@
 --- @field role integer Alias for id
 --- @field socket uv_udp_t UDP socket for communication
 --- @field heartbeat_timer uv_timer_t Timer for sending heartbeat pings
+--- @field last_pong_time integer? Timestamp of last received pong (ms)
 --- @field tasks table<integer, FollowerTaskEntry> Pending tasks by task_id
 
 --- @class CandidateRole
 --- @field id integer Role identifier (0 = candidate)
+---
+--- @class TransitionRole
+--- @field id integer Role identifier (-1 = candidate)
 
---- @alias Role LeaderRole|FollowerRole|CandidateRole
+--- @alias Role LeaderRole|FollowerRole|CandidateRole|TransitionRole
 
 --- @class LeaderTaskEntry
 --- @field type_id integer Task type identifier

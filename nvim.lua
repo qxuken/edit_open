@@ -5,7 +5,7 @@
 local uv = require("lua.uv_wrapper")
 local logger = require("lua.logger")
 local tasks = require("lua.tasks.mod")
-local comms = require("lua.comms")
+local comms = require("lua.comms.mod")
 
 -- Configure logger to use Neovim's notification system
 --- @param level LogLevel The log level
