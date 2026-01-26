@@ -7,6 +7,7 @@ import "core:os"
 import "deps/luajit"
 import "deps/luv"
 import "deps/uv"
+_ :: mem
 
 lua_run :: proc(src: cstring) {
 	_context := context

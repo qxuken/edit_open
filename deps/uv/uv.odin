@@ -16,6 +16,6 @@ when ODIN_OS == .Windows {
 @(link_prefix = "uv_")
 @(default_calling_convention = "c")
 foreign lib {
-	setup_args :: proc(argc: c.int, argv: rawptr) -> ^^c.char ---
+	setup_args :: proc(argc: c.int, argv: rawptr) -> [^]cstring ---
 	replace_allocator :: proc(malloc: proc(size: c.size_t) -> rawptr, realloc: proc(ptr: rawptr, new_size: c.size_t) -> rawptr, calloc: proc(count: c.size_t, size: c.size_t) -> rawptr, free: proc(ptr: rawptr)) ---
 }
