@@ -44,6 +44,7 @@ local logger = require("lua.logger")
 --- @field fs_close fun(fd: integer, callback: fun(err: string?))
 --- @field now fun(): integer
 --- @field run fun()
+--- @field stop fun()
 --- @field shutdown fun(handle: uv_pipe_t, callback: fun())
 
 --- @class UvWrapperModule
@@ -216,6 +217,11 @@ end
 --- Run the event loop
 function M.run()
 	M._internal_uv.run()
+end
+
+--- Stop the event loop
+function M.stop()
+	M._internal_uv.stop()
 end
 
 return M

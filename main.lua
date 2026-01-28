@@ -7,20 +7,26 @@ local uv = require("lua.uv_wrapper")
 local tasks = require("lua.tasks.mod")
 local comms = require("lua.comms.mod")
 
--- Initialize libuv wrapper with luv module
-uv.init(luv)
--- Register shutdown handler to clean up connections
-uv.shutdown(comms.cleanup_role_and_shutdown_socket)
+math.randomseed(os.time())
 
+uv.init(luv)
 local sigint = luv.new_signal()
-luv.signal_start(sigint, "sigint", function(signal)
+luv.signal_start(sigint, "sigint", function()
 	print("SIGINT, shutting down...")
 	luv.stop()
 end)
 
--- Setup task registry and initialize communication
-math.randomseed()
-tasks.setup()
+tasks.register(require("lua.tasks.openfile").setup(function(payload, callback)
+	uv.fstat(payload.path, function(err, stat)
+		local capable = not err and stat and stat.type == "file"
+		callback(capable)
+	end)
+end, function(payload)
+	io.popen("wezetrm cli spawn nvim " .. payload.path)
+	uv.stop()
+end))
+
 comms.run_comms()
--- Start the event loop
+uv.shutdown(comms.shutdown)
+
 uv.run()

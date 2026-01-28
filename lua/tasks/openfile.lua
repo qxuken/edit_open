@@ -85,23 +85,26 @@ function M.decode(data)
 	}, nil
 end
 
---- Checks if this instance can execute the task (file exists and is accessible)
---- @param payload OpenFilePayload The task payload with file path
---- @param callback fun(capable: boolean) Callback with capability result
+--- An check performed by executor
+--- @alias OpenFileCanExecute fun(payload: OpenFilePayload, cb: fun(can: boolean))
+
+--- An action performed by executor (needs to be rewritten via setup)
+--- @alias OpenFileExecute fun(payload: OpenFilePayload)
+
+--- @type OpenFileCanExecute
 function M.can_execute(payload, callback)
-	uv.fstat(payload.path, function(err, stat)
-		local capable = not err and stat and stat.type == "file"
-		callback(capable)
-	end)
+	callback(false)
 end
 
---- Execute the task - open the file at specified location
---- @param payload OpenFilePayload The task payload with file path and position
-function M.execute(payload)
-	logger.info(string.format("Executing: Open file %s:%d:%d", payload.path, payload.row, payload.col))
-	-- TODO: integrate with editor (vim.cmd, etc.)
-end
+--- @type OpenFileExecute
+function M.execute(payload) end
 
--- TODO: add a fallback function in case cluster failed to execute, example: start wezterm with nvim <file>
+--- @param can_execute OpenFileCanExecute
+--- @param execute OpenFileExecute
+function M.setup(can_execute, execute)
+	M.can_execute = can_execute
+	M.execute = execute
+	return M
+end
 
 return M

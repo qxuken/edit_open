@@ -166,16 +166,17 @@ function M.try_init(on_err)
 		+ math.random(constants.HEARTBEAT_RANGE_FROM, constants.HEARTBEAT_RANGE_TO)
 	local timer = uv.set_interval(interval_ms, function()
 		local now = uv.now()
-		if G.role.last_pong_time ~= nil and (now - G.role.last_pong_time) > constants.HEARTBEAT_TIMEOUT then
+		if not G.role.last_pong_time then
+			G.role.last_pong_time = now
+		elseif (now - G.role.last_pong_time) > constants.HEARTBEAT_TIMEOUT then
 			logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
 			on_err()
-		else
-			G.role.socket:send(message.pack_ping_frame(now), nil, nil, function(send_err)
-				if send_err ~= nil then
-					logger.debug(send_err)
-				end
-			end)
 		end
+		G.role.socket:send(message.pack_ping_frame(now), nil, nil, function(send_err)
+			if send_err ~= nil then
+				logger.debug(send_err)
+			end
+		end)
 	end)
 	logger.debug("sendings pings per " .. interval_ms .. "ms")
 	G.role = new_follower_role(socket, timer)

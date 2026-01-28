@@ -36,7 +36,7 @@ G.last_command_id = 0
 --- Clean up current role state and close socket connections.
 --- Resets to candidate role after cleanup.
 --- @return boolean
-function M.cleanup_role_and_shutdown_socket()
+local function cleanup_role_and_shutdown_socket()
 	if not G.role then
 		G.role = new_candidate_role()
 		return true
@@ -74,7 +74,7 @@ function M.run_comms(retries)
 	if retries_left == 0 then
 		return false, "No more retries, quiting"
 	end
-	if not M.cleanup_role_and_shutdown_socket() then
+	if not cleanup_role_and_shutdown_socket() then
 		return false, "Already running"
 	end
 	local err
@@ -88,6 +88,11 @@ function M.run_comms(retries)
 		end
 	end
 	return true, nil
+end
+
+--- Shutdown communication
+function M.shutdown()
+	cleanup_role_and_shutdown_socket()
 end
 
 return M

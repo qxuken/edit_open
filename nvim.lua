@@ -11,11 +11,36 @@ local comms = require("lua.comms.mod")
 --- @param level LogLevel The log level
 --- @param message string The message to display
 logger.set_printer(function(level, message)
-	vim.notify(message, level)
+	-- vim.notify(message, level)
 end)
 
--- Initialize libuv wrapper with Neovim's built-in uv module
 uv.init(vim.uv)
--- Setup task registry and initialize communication
-tasks.setup()
+
+local function strip_cwd(path)
+	return vim.fn.fnamemodify(path, ":.")
+end
+tasks.register(require("lua.tasks.openfile").setup(function(payload, callback)
+	uv.fstat(strip_cwd(payload.path), function(err, stat)
+		local capable = not err and stat and stat.type == "file"
+		callback(capable)
+	end)
+end, function(payload)
+	vim.schedule(function()
+		vim.cmd("edit " .. payload.path)
+		if payload.row > 0 or payload.col > 0 then
+			local row = payload.row
+			if row <= 0 then
+				row = 1
+			end
+			local col = payload.col
+			if col <= 0 then
+				col = 1
+			end
+			vim.cmd("call cursor(" .. row .. "," .. col .. ")")
+		end
+		vim.system({ "wezterm", "cli", "activate-pane" })
+	end)
+end))
+
 comms.run_comms()
+uv.shutdown(comms.shutdown)

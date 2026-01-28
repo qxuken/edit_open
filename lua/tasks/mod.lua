@@ -43,7 +43,7 @@ end
 function M.decode_task(type_id, data)
 	local task = M.get(type_id)
 	if not task then
-		return nil, "unknown task type: " .. tostring(type_id)
+		return nil, "unknown task type: " .. type_id
 	end
 	return task.decode(data)
 end
@@ -56,15 +56,9 @@ end
 function M.encode_task(type_id, payload)
 	local task = M.get(type_id)
 	if not task then
-		return nil, "unknown task type: " .. tostring(type_id)
+		return nil, "unknown task type: " .. type_id
 	end
 	return task.encode(payload)
-end
-
---- Initialize the task registry and register built-in tasks
-function M.setup()
-	G.command_registry = {}
-	M.register(require("lua.tasks.openfile"))
 end
 
 return M
