@@ -7,6 +7,7 @@ local logger = require("lua.logger")
 local constants = require("lua.comms.constants")
 local leader = require("lua.comms.leader")
 local follower = require("lua.comms.follower")
+local issuer = require("lua.comms.issuer")
 
 --- @class CommsModule
 local M = {}
@@ -58,6 +59,9 @@ local function cleanup_role_and_shutdown_socket()
 	elseif role.id == constants.role.follower then
 		---@diagnostic disable-next-line: param-type-mismatch
 		follower.cleanup_role(role)
+	elseif role.id == constants.role.issuer then
+		---@diagnostic disable-next-line: param-type-mismatch
+		issuer.cleanup_role(role)
 	end
 	role.socket:close()
 	G.role = new_candidate_role()
@@ -88,6 +92,35 @@ function M.run_comms(retries)
 		end
 	end
 	return true, nil
+end
+
+--- Initialize communication - attempts to run tasks through cluster, falls back to execution
+--- @param task IssuerTaskEntry The task
+--- @param retries integer? Number of retry attempts remaining (default: 3)
+--- @return string? error Error message if all retries exhausted
+function M.run_task(task, retries)
+	local retries_left = retries and retries - 1 or 3
+	logger.debug("run_task: " .. retries_left)
+	if retries_left == 0 then
+		return issuer.try_execute_task(task)
+	end
+	if not cleanup_role_and_shutdown_socket() then
+		return "Already running"
+	end
+	local err
+	err = leader.try_init(M.run_comms)
+	if not err then
+		logger.debug("no leader bound to the port")
+		M.shutdown()
+		return issuer.try_execute_task(task)
+	end
+	err = issuer.try_init(task, M.shutdown, function()
+		return M.run_task(task, retries_left)
+	end)
+	if err ~= nil then
+		logger.trace(err)
+		return M.run_task(task, retries_left)
+	end
 end
 
 --- Shutdown communication

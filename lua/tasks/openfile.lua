@@ -3,8 +3,6 @@
 --- @class OpenFileTaskModule : TaskModule
 
 local encode = require("lua.message.encode")
-local logger = require("lua.logger")
-local uv = require("lua.uv_wrapper")
 
 --- @class OpenFilePayload
 --- @field path string The file path to open
@@ -15,7 +13,7 @@ local uv = require("lua.uv_wrapper")
 local M = {}
 
 --- Task type identifier
---- @type integer
+--- @type 1
 M.id = 1
 
 --- Validate that a payload has all required fields with correct types
@@ -85,19 +83,19 @@ function M.decode(data)
 	}, nil
 end
 
---- An check performed by executor
+--- Check performed by executor
 --- @alias OpenFileCanExecute fun(payload: OpenFilePayload, cb: fun(can: boolean))
 
---- An action performed by executor (needs to be rewritten via setup)
---- @alias OpenFileExecute fun(payload: OpenFilePayload)
+--- Action performed by executor (needs to be rewritten via setup)
+--- @alias OpenFileExecute fun(payload: OpenFilePayload, cb: fun(res: boolean))
 
 --- @type OpenFileCanExecute
-function M.can_execute(payload, callback)
+function M.can_execute(_, callback)
 	callback(false)
 end
 
 --- @type OpenFileExecute
-function M.execute(payload) end
+function M.execute() end
 
 --- @param can_execute OpenFileCanExecute
 --- @param execute OpenFileExecute

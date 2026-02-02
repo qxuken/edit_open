@@ -1,11 +1,10 @@
---- Main entry point for standalone Lua execution.
---- Initializes the communication layer and starts the event loop.
---- Uses luv (libuv bindings) for async I/O.
-
 local luv = require("luv")
 local uv = require("lua.uv_wrapper")
 local tasks = require("lua.tasks.mod")
 local comms = require("lua.comms.mod")
+local constants = require("lua.comms.constants")
+local logger = require("lua.logger")
+local cli = require("lua.cli")
 
 math.randomseed(os.time())
 
@@ -19,14 +18,25 @@ end)
 tasks.register(require("lua.tasks.openfile").setup(function(payload, callback)
 	uv.fstat(payload.path, function(err, stat)
 		local capable = not err and stat and stat.type == "file"
+		if not capable then
+			logger.warn("Not a file")
+		end
 		callback(capable)
 	end)
-end, function(payload)
-	io.popen("wezetrm cli spawn nvim " .. payload.path)
-	uv.stop()
+end, function(payload, callback)
+	os.execute("wezterm cli spawn nvim " .. payload.path)
+	callback(true)
 end))
 
-comms.run_comms()
+local type_id, payload = cli.parse_args()
+if type_id == cli.task_types.serve then
+	comms.run_comms()
+else
+	comms.run_task({
+		type_id = type_id,
+		payload = payload or {},
+		state = constants.task_state.pending,
+	})
+end
 uv.shutdown(comms.shutdown)
-
 uv.run()

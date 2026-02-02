@@ -15,9 +15,19 @@ M.HEARTBEAT_RANGE_TO = 1750
 --- @type integer Timeout waiting for capable responses from followers (ms)
 M.TASK_DISPATCH_TIMEOUT = 3000
 
+--- @type integer Timeout before considering a leader disconnected (ms)
+M.ISSUER_PING_TIMEOUT = 2000
+--- @type integer Base interval between heartbeat pings (ms)
+M.ISSUER_PING_INTERVAL = M.ISSUER_PING_TIMEOUT / 2
+--- @type integer Timeout before considering a leader unable to complete task (ms)
+M.ISSUER_PENDING_TIMEOUT = 250
+--- @type integer Timeout before considering a leader unable to complete task (ms)
+M.ISSUER_COMPLETION_TIMEOUT = 1750
+
 --- Role identifier constants
 --- @enum RoleId
 M.role = {
+	issuer = -2,
 	transition = -1,
 	candidate = 0,
 	follower = 1,
@@ -28,9 +38,10 @@ M.role = {
 --- @enum TaskState
 M.task_state = {
 	pending = 0, -- Task received, checking local capability
-	dispatched = 1, -- Dispatched to followers, waiting for capable responses
+	dispatched = 1, -- Dispatched to followers/leader, waiting for response(s)
 	granted = 2, -- Granted to a follower
-	completed = 3, -- Task completed
+	in_progress = 3, -- Task completion in progress
+	completed = 4, -- Task completed
 }
 
 return M

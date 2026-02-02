@@ -16,7 +16,6 @@ local M = {}
 local function new_role(socket)
 	return {
 		id = constants.role.leader,
-		role = constants.role.leader,
 		socket = socket,
 		peers = {},
 		tasks = {},
@@ -29,7 +28,9 @@ local function stop_task(task)
 	if not task then
 		return
 	end
-	uv.clear_timer(task.dispatch_timer)
+	local timer = task.dispatch_timer
+	task.dispatch_timer = nil
+	pcall(uv.clear_timer, timer)
 end
 
 --- Clean up a task entry and it's associated timers
@@ -79,6 +80,7 @@ end
 --- @return integer id The new task ID
 local function next_task_id()
 	G.last_command_id = G.last_command_id + 1
+	--- Check u32 overflow
 	if G.last_command_id > 0xFFFFFFFF then
 		G.last_command_id = 1
 	end
@@ -87,7 +89,7 @@ end
 
 --- Broadcast a frame to all connected peers
 --- @param frame string The binary frame to broadcast
---- @param requester_port integer? The original requester's port (may not be a peer)
+--- @param requester_port integer The original requester's port (may not be a peer)
 --- @return integer Number of sent frames
 local function broadcast_to_peers(frame, requester_port)
 	local counter = 0
@@ -102,32 +104,28 @@ end
 
 --- Leader: Handle incoming task_request message
 --- @param data TaskRequestPayload The decoded task request payload
---- @param requester_port integer? The port of the requester
+--- @param requester_port integer The port of the requester
 local function on_task_request(data, requester_port)
+	assert(type(requester_port) == "number", "requester port should be a number")
+	local requester_task_id = data.id
 	local task_id = next_task_id()
 	local type_id = data.type_id
 	local raw_data = data.data
 
 	-- Send pending acknowledgment to requester immediately
-	if requester_port then
-		send_frame_to_peer(requester_port, message.pack_task_pending_frame(task_id))
-	end
+	send_frame_to_peer(requester_port, message.pack_task_pending_frame(requester_task_id))
 
 	local payload, err = tasks.decode_task(type_id, raw_data)
 	if err or not payload then
 		logger.error("Failed to decode task: " .. (err or "Unknown error"))
-		if requester_port then
-			send_frame_to_peer(requester_port, message.pack_task_failed_frame(task_id))
-		end
+		send_frame_to_peer(requester_port, message.pack_task_failed_frame(requester_task_id))
 		return
 	end
 
 	local task_module = tasks.get(type_id)
 	if not task_module then
 		logger.error("Unknown task type: " .. type_id)
-		if requester_port then
-			send_frame_to_peer(requester_port, message.pack_task_failed_frame(task_id))
-		end
+		send_frame_to_peer(requester_port, message.pack_task_failed_frame(requester_task_id))
 		return
 	end
 
@@ -136,19 +134,19 @@ local function on_task_request(data, requester_port)
 	)
 
 	G.role.tasks[task_id] = {
+		requester_task_id = requester_task_id,
+		requester_port = requester_port,
 		type_id = type_id,
 		payload = payload,
 		raw_data = raw_data,
 		state = constants.task_state.pending,
 		capable_peers = {},
 		granted_peer = nil,
-		requester_port = requester_port,
 		dispatched_count = 0,
 		not_capable_count = 0,
 		dispatch_timer = nil,
 	}
 
-	-- Check if leader can execute locally first
 	task_module.can_execute(payload, function(capable)
 		local task = G.role.tasks[task_id]
 		if not task then
@@ -157,13 +155,19 @@ local function on_task_request(data, requester_port)
 
 		if capable then
 			logger.info("Task[" .. task_id .. "] executing locally (leader capable)")
-			task_module.execute(payload)
-			task.state = constants.task_state.completed
-			-- Send completed to requester
-			if task.requester_port then
-				send_frame_to_peer(task.requester_port, message.pack_task_completed_frame(task_id))
-			end
-			cleanup_task(task_id)
+			task_module.execute(payload, function(result)
+				local t = G.role.tasks[task_id]
+				if not t or t.state == constants.task_state.completed then
+					return
+				end
+				cleanup_task(task_id)
+				t.state = constants.task_state.completed
+				if result then
+					send_frame_to_peer(t.requester_port, message.pack_task_completed_frame(t.requester_task_id))
+				else
+					send_frame_to_peer(t.requester_port, message.pack_task_failed_frame(t.requester_task_id))
+				end
+			end)
 		else
 			logger.debug("Task[" .. task_id .. "] dispatching to followers")
 			task.state = constants.task_state.dispatched
@@ -174,12 +178,11 @@ local function on_task_request(data, requester_port)
 				if not t or t.state ~= constants.task_state.dispatched then
 					return
 				end
-				logger.warn("Task[" .. task_id .. "] dispatch timeout, no capable followers")
-				if t.requester_port then
-					send_frame_to_peer(t.requester_port, message.pack_task_failed_frame(task_id))
-				end
+				--- timer is closed by this time
 				t.dispatch_timer = nil
 				cleanup_task(task_id)
+				logger.warn("Task[" .. task_id .. "] dispatch timeout, no capable followers")
+				send_frame_to_peer(t.requester_port, message.pack_task_failed_frame(t.requester_task_id))
 			end)
 
 			task.dispatched_count =
@@ -187,9 +190,7 @@ local function on_task_request(data, requester_port)
 			if task.dispatched_count == 0 then
 				logger.debug("Task[" .. task_id .. "] no peers available to dispatch")
 				cleanup_task(task_id)
-				if task.requester_port then
-					send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task_id))
-				end
+				send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task.requester_task_id))
 				return
 			end
 		end
@@ -209,6 +210,7 @@ local function on_task_capable(data, port)
 		return
 	end
 
+	table.insert(task.capable_peers, port)
 	if task.state ~= constants.task_state.dispatched then
 		logger.debug("Task[" .. task_id .. "] capable from port " .. port .. " - wrong state: " .. task.state)
 		send_frame_to_peer(port, message.pack_task_denied_frame(task_id))
@@ -219,20 +221,12 @@ local function on_task_capable(data, port)
 	logger.info("Task[" .. task_id .. "] granting to port " .. port)
 	task.state = constants.task_state.granted
 	task.granted_peer = port
-	table.insert(task.capable_peers, port)
 
-	-- Stop dispatch timer since we found a capable peer
-	if task.dispatch_timer then
-		uv.clear_timer(task.dispatch_timer)
-		task.dispatch_timer = nil
-	end
-
+	stop_task(task)
 	send_frame_to_peer(port, message.pack_task_granted_frame(task_id))
 
-	-- Send completed to requester (assumes execution succeeds once granted)
-	if task.requester_port then
-		send_frame_to_peer(task.requester_port, message.pack_task_completed_frame(task_id))
-	end
+	-- TODO: Can do better with sending uppon real completion and add retry policies
+	send_frame_to_peer(task.requester_port, message.pack_task_completed_frame(task.requester_task_id))
 
 	cleanup_task(task_id)
 end
@@ -249,13 +243,12 @@ local function on_task_not_capable(data, port)
 		return
 	end
 
+	task.not_capable_count = task.not_capable_count + 1
 	if task.state ~= constants.task_state.dispatched then
 		logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - wrong state: " .. task.state)
 		return
 	end
 
-	-- Increment not_capable count
-	task.not_capable_count = task.not_capable_count + 1
 	logger.debug(
 		"Task["
 			.. task_id
@@ -268,12 +261,9 @@ local function on_task_not_capable(data, port)
 			.. ")"
 	)
 
-	-- If all dispatched peers responded not_capable, fail the task
 	if task.not_capable_count >= task.dispatched_count then
 		logger.warn("Task[" .. task_id .. "] all " .. task.dispatched_count .. " followers not capable")
-		if task.requester_port then
-			send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task_id))
-		end
+		send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task.requester_task_id))
 		cleanup_task(task_id)
 	end
 end
@@ -304,10 +294,9 @@ end
 --- Attempt to initialize as leader by binding to the main port
 --- @param on_err function function that triggers restart
 --- @return string? err Error message if initialization failed
---- @return integer? code Error code if initialization failed
 function M.try_init(on_err)
 	logger.debug("try_init_leader")
-	local socket, err, code = uv.bind_as_server(uv.recv_buf(function(buf, port)
+	local socket, err = uv.bind_as_server(uv.recv_buf(function(buf, port)
 		assert(buf ~= nil, "recv_msg callback with empty data")
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or cmd_id == nil or payload == nil then
@@ -322,10 +311,10 @@ function M.try_init(on_err)
 		end
 	end))
 	if err ~= nil or socket == nil then
-		return err, code
+		return err
 	end
 	G.role = new_role(socket)
-	return nil, nil
+	return nil
 end
 
 --- Cleanup given role

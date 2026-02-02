@@ -6,12 +6,16 @@ local uv = require("lua.uv_wrapper")
 local logger = require("lua.logger")
 local tasks = require("lua.tasks.mod")
 local comms = require("lua.comms.mod")
+local G = require("lua.G")
 
 -- Configure logger to use Neovim's notification system
 --- @param level LogLevel The log level
 --- @param message string The message to display
 logger.set_printer(function(level, message)
-	-- vim.notify(message, level)
+	if level < G.log_level then
+		return
+	end
+	vim.notify(message, level)
 end)
 
 uv.init(vim.uv)
@@ -24,7 +28,7 @@ tasks.register(require("lua.tasks.openfile").setup(function(payload, callback)
 		local capable = not err and stat and stat.type == "file"
 		callback(capable)
 	end)
-end, function(payload)
+end, function(payload, callback)
 	vim.schedule(function()
 		vim.cmd("edit " .. payload.path)
 		if payload.row > 0 or payload.col > 0 then
@@ -39,6 +43,7 @@ end, function(payload)
 			vim.cmd("call cursor(" .. row .. "," .. col .. ")")
 		end
 		vim.system({ "wezterm", "cli", "activate-pane" })
+		callback(true)
 	end)
 end))
 

@@ -1,4 +1,4 @@
---- Task registry module for managing task type modules.
+--- Task registry module for managing a task type modules.
 --- Provides registration, lookup, and encoding/decoding of tasks.
 --- @class TasksModule
 
@@ -59,6 +59,26 @@ function M.encode_task(type_id, payload)
 		return nil, "unknown task type: " .. type_id
 	end
 	return task.encode(payload)
+end
+
+--- Try to execute the task using the registered task module
+--- @param type_id number The task type identifier
+--- @param payload table The task payload
+--- @param callback fun(res: boolean) The callback on completion
+--- @return string|nil err Error message if decoding failed
+function M.try_execute(type_id, payload, callback)
+	local task = M.get(type_id)
+	if not task then
+		callback(false)
+		return "unknown task type: " .. type_id
+	end
+	return task.can_execute(payload, function(capable)
+		if capable then
+			task.execute(payload, callback)
+		else
+			callback(false)
+		end
+	end)
 end
 
 return M

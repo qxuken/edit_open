@@ -1,6 +1,5 @@
 package main
 
-import "base:runtime"
 import "core:fmt"
 import "core:mem"
 import "core:os"
@@ -8,6 +7,8 @@ import "deps/luajit"
 import "deps/luv"
 import "deps/uv"
 _ :: mem
+
+entry: cstring : "main.lua"
 
 lua_run :: proc(src: cstring) {
 	_context := context
@@ -43,9 +44,5 @@ main :: proc() {
 		defer report_allocations()
 	}
 	uv.setup()
-	entry: cstring = "main.lua"
-	if len(runtime.args__) > 1 {
-		entry = runtime.args__[1]
-	}
 	lua_run(entry)
 }

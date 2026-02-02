@@ -17,7 +17,6 @@ local M = {}
 local function new_role(socket, timer)
 	return {
 		id = constants.role.follower,
-		role = constants.role.follower,
 		socket = socket,
 		heartbeat_timer = timer,
 		last_pong_time = nil,
@@ -28,9 +27,12 @@ end
 --- Send a frame to the leader
 --- @param frame string The binary frame to send
 local function send_to_leader(frame)
-	G.role.socket:send(frame, G.HOST, G.PORT, function(send_err)
-		if send_err ~= nil then
-			logger.debug("send_to_leader error: " .. send_err)
+	if not G.role or not G.role.socket then
+		return
+	end
+	G.role.socket:send(frame, nil, nil, function(err)
+		if err ~= nil then
+			logger.debug("send_to_leader error: " .. err)
 		end
 	end)
 end
@@ -100,9 +102,12 @@ local function on_task_granted(data)
 
 	logger.info("Task[" .. task_id .. "] granted, executing")
 	task.state = constants.task_state.granted
-	task_module.execute(task.payload)
-	task.state = constants.task_state.completed
-	G.role.tasks[task_id] = nil
+	--- TODO: respond with a result of the execution
+	---@diagnostic disable-next-line: unused-local
+	task_module.execute(task.payload, function(result)
+		task.state = constants.task_state.completed
+		G.role.tasks[task_id] = nil
+	end)
 end
 
 --- Follower: Handle task_denied message from leader
@@ -143,10 +148,9 @@ end
 --- Attempt to initialize as follower by connecting to the leader
 --- @param on_err function function that triggers restart
 --- @return string? err Error message if initialization failed
---- @return integer? code Error code if initialization failed
 function M.try_init(on_err)
 	logger.debug("try_init_follower")
-	local socket, err, code = uv.bind_as_client(uv.recv_buf(function(buf, port)
+	local socket, err = uv.bind_as_client(uv.recv_buf(function(buf, port)
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or port ~= G.PORT or cmd_id == nil or payload == nil then
 			logger.debug("recv_msg -> [err] " .. err)
@@ -160,7 +164,7 @@ function M.try_init(on_err)
 		end
 	end))
 	if err ~= nil or socket == nil then
-		return err, code
+		return err
 	end
 	local interval_ms = constants.HEARTBEAT_INTERVAL
 		+ math.random(constants.HEARTBEAT_RANGE_FROM, constants.HEARTBEAT_RANGE_TO)
@@ -172,15 +176,11 @@ function M.try_init(on_err)
 			logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
 			on_err()
 		end
-		G.role.socket:send(message.pack_ping_frame(now), nil, nil, function(send_err)
-			if send_err ~= nil then
-				logger.debug(send_err)
-			end
-		end)
+		send_to_leader(message.pack_ping_frame(now))
 	end)
 	logger.debug("sendings pings per " .. interval_ms .. "ms")
 	G.role = new_role(socket, timer)
-	return nil, nil
+	return nil
 end
 
 --- Cleanup given role
