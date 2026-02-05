@@ -6,7 +6,7 @@ local uv = require("lua.uv_wrapper")
 local logger = require("lua.logger")
 local message = require("lua.message.mod")
 local tasks = require("lua.tasks.mod")
-local constants = require("lua.comms.constants")
+local c = require("lua.comms.constants")
 
 local M = {}
 
@@ -15,33 +15,22 @@ local M = {}
 --- @return LeaderRole role The new leader role state
 local function new_role(socket)
 	return {
-		id = constants.role.leader,
+		id = c.role.leader,
 		socket = socket,
 		peers = {},
 		tasks = {},
 	}
 end
 
---- Clean up a task entry and it's associated timers
+--- Clean up a task entry and its associated timers
 --- @param task FollowerTaskEntry|LeaderTaskEntry The task ID to clean up
 local function stop_task(task)
 	if not task then
 		return
 	end
-	local timer = task.dispatch_timer
-	task.dispatch_timer = nil
+	local timer = task.timeout_timer
+	task.timeout_timer = nil
 	pcall(uv.clear_timer, timer)
-end
-
---- Clean up a task entry and it's associated timers
---- @param task_id integer The task ID to clean up
-local function cleanup_task(task_id)
-	local task = G.role.tasks[task_id]
-	if not task then
-		return
-	end
-	G.role.tasks[task_id] = nil
-	stop_task(task)
 end
 
 --- Ensure a peer's timer is stopped and removed
@@ -59,7 +48,7 @@ end
 --- @param port integer The peer's port number
 local function reset_peer_timer(port)
 	ensure_peer_closed(port)
-	G.role.peers[port] = uv.set_timeout(constants.HEARTBEAT_TIMEOUT, function()
+	G.role.peers[port] = uv.set_timeout(c.HEARTBEAT_TIMEOUT, function()
 		G.role.peers[port] = nil
 	end)
 end
@@ -74,6 +63,75 @@ local function send_frame_to_peer(port, frame)
 			logger.debug(send_err)
 		end
 	end)
+end
+
+--- Clean up a task entry and its associated timers
+--- Also sends denial to all capable peers except the one that completed the task
+--- @param task_id integer The task ID to clean up
+local function cleanup_task(task_id)
+	local task = G.role.tasks[task_id]
+	if not task then
+		return
+	end
+	G.role.tasks[task_id] = nil
+	stop_task(task)
+
+	-- Deny all capable peers except the one that completed the task
+	for _, port in ipairs(task.capable_peers or {}) do
+		if port ~= task.granted_peer then
+			send_frame_to_peer(port, message.pack_task_denied_frame(task_id))
+		end
+	end
+end
+
+--- Attempt to grant task to next capable peer, or fail if none left
+--- @param task_id integer The task ID
+local function try_grant_next_peer(task_id)
+	local task = G.role.tasks[task_id]
+	if not task then
+		return
+	end
+
+	-- Stop current timeout timer
+	stop_task(task)
+
+	-- Remove current granted peer from capable list
+	if task.granted_peer then
+		for i, port in ipairs(task.capable_peers) do
+			if port == task.granted_peer then
+				table.remove(task.capable_peers, i)
+				break
+			end
+		end
+		task.granted_peer = nil
+	end
+
+	-- Check if any capable peers remain
+	if #task.capable_peers == 0 then
+		logger.warn("Task[" .. task_id .. "] no more capable peers, failing")
+		send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task.requester_task_id))
+		cleanup_task(task_id)
+		return
+	end
+
+	-- Grant to next capable peer
+	local next_port = task.capable_peers[1]
+	logger.info("Task[" .. task_id .. "] retrying, granting to port " .. next_port)
+	task.granted_peer = next_port
+	task.state = c.task_state.granted
+
+	-- Start execution timeout timer
+	task.timeout_timer = uv.set_timeout(c.TASK_EXECUTION_TIMEOUT, function()
+		local t = G.role.tasks[task_id]
+		if not t or t.state ~= c.task_state.granted then
+			return
+		end
+		t.timeout_timer = nil
+		logger.warn("Task[" .. task_id .. "] execution timeout from port " .. t.granted_peer)
+		try_grant_next_peer(task_id)
+	end)
+
+	send_frame_to_peer(next_port, message.pack_task_granted_frame(task_id))
 end
 
 --- Generate the next unique task ID
@@ -139,12 +197,12 @@ local function on_task_request(data, requester_port)
 		type_id = type_id,
 		payload = payload,
 		raw_data = raw_data,
-		state = constants.task_state.pending,
+		state = c.task_state.pending,
 		capable_peers = {},
 		granted_peer = nil,
 		dispatched_count = 0,
 		not_capable_count = 0,
-		dispatch_timer = nil,
+		timeout_timer = nil,
 	}
 
 	task_module.can_execute(payload, function(capable)
@@ -157,11 +215,11 @@ local function on_task_request(data, requester_port)
 			logger.info("Task[" .. task_id .. "] executing locally (leader capable)")
 			task_module.execute(payload, function(result)
 				local t = G.role.tasks[task_id]
-				if not t or t.state == constants.task_state.completed then
+				if not t or t.state == c.task_state.completed then
 					return
 				end
 				cleanup_task(task_id)
-				t.state = constants.task_state.completed
+				t.state = c.task_state.completed
 				if result then
 					send_frame_to_peer(t.requester_port, message.pack_task_completed_frame(t.requester_task_id))
 				else
@@ -170,16 +228,16 @@ local function on_task_request(data, requester_port)
 			end)
 		else
 			logger.debug("Task[" .. task_id .. "] dispatching to followers")
-			task.state = constants.task_state.dispatched
+			task.state = c.task_state.dispatched
 
 			-- Set up dispatch timeout timer
-			task.dispatch_timer = uv.set_timeout(constants.TASK_DISPATCH_TIMEOUT, function()
+			task.timeout_timer = uv.set_timeout(c.TASK_DISPATCH_TIMEOUT, function()
 				local t = G.role.tasks[task_id]
-				if not t or t.state ~= constants.task_state.dispatched then
+				if not t or t.state ~= c.task_state.dispatched then
 					return
 				end
-				--- timer is closed by this time
-				t.dispatch_timer = nil
+				--- The timer is closed by this time
+				t.timeout_timer = nil
 				cleanup_task(task_id)
 				logger.warn("Task[" .. task_id .. "] dispatch timeout, no capable followers")
 				send_frame_to_peer(t.requester_port, message.pack_task_failed_frame(t.requester_task_id))
@@ -210,25 +268,16 @@ local function on_task_capable(data, port)
 		return
 	end
 
+	-- Add to capable peers list (will be denied on task cleanup if not granted)
 	table.insert(task.capable_peers, port)
-	if task.state ~= constants.task_state.dispatched then
-		logger.debug("Task[" .. task_id .. "] capable from port " .. port .. " - wrong state: " .. task.state)
-		send_frame_to_peer(port, message.pack_task_denied_frame(task_id))
+
+	if task.state ~= c.task_state.dispatched then
+		logger.debug("Task[" .. task_id .. "] capable from port " .. port)
 		return
 	end
+	task.state = c.task_state.granted
 
-	-- First capable peer gets the task
-	logger.info("Task[" .. task_id .. "] granting to port " .. port)
-	task.state = constants.task_state.granted
-	task.granted_peer = port
-
-	stop_task(task)
-	send_frame_to_peer(port, message.pack_task_granted_frame(task_id))
-
-	-- TODO: Can do better with sending uppon real completion and add retry policies
-	send_frame_to_peer(task.requester_port, message.pack_task_completed_frame(task.requester_task_id))
-
-	cleanup_task(task_id)
+	try_grant_next_peer(task_id)
 end
 
 --- Leader: Handle task_not_capable response from a follower
@@ -244,7 +293,7 @@ local function on_task_not_capable(data, port)
 	end
 
 	task.not_capable_count = task.not_capable_count + 1
-	if task.state ~= constants.task_state.dispatched then
+	if task.state ~= c.task_state.dispatched then
 		logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - wrong state: " .. task.state)
 		return
 	end
@@ -268,6 +317,49 @@ local function on_task_not_capable(data, port)
 	end
 end
 
+--- Leader: Handle task_exec_done response from a follower
+--- @param data TaskIdPayload The decoded payload
+--- @param port integer The responding follower's port
+local function on_task_exec_done(data, port)
+	local task_id = data.id
+	local task = G.role.tasks[task_id]
+
+	if not task then
+		logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - task not found")
+		return
+	end
+
+	if task.state ~= c.task_state.granted or task.granted_peer ~= port then
+		logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - wrong state or peer")
+		return
+	end
+
+	logger.info("Task[" .. task_id .. "] completed by port " .. port)
+	send_frame_to_peer(task.requester_port, message.pack_task_completed_frame(task.requester_task_id))
+	cleanup_task(task_id)
+end
+
+--- Leader: Handle task_exec_failed response from a follower
+--- @param data TaskIdPayload The decoded payload
+--- @param port integer The responding follower's port
+local function on_task_exec_failed(data, port)
+	local task_id = data.id
+	local task = G.role.tasks[task_id]
+
+	if not task then
+		logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - task not found")
+		return
+	end
+
+	if task.state ~= c.task_state.granted or task.granted_peer ~= port then
+		logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - wrong state or peer")
+		return
+	end
+
+	logger.warn("Task[" .. task_id .. "] execution failed by port " .. port .. ", trying next peer")
+	try_grant_next_peer(task_id)
+end
+
 --- Handle a ping message from a follower
 --- @param port integer The follower's port
 local function on_ping(port)
@@ -288,6 +380,10 @@ local function on_command(cmd_id, payload, port)
 		on_task_capable(payload, port)
 	elseif cmd_id == message.type.task_not_capable then
 		on_task_not_capable(payload, port)
+	elseif cmd_id == message.type.task_exec_done then
+		on_task_exec_done(payload, port)
+	elseif cmd_id == message.type.task_exec_failed then
+		on_task_exec_failed(payload, port)
 	end
 end
 
@@ -320,7 +416,7 @@ end
 --- Cleanup given role
 --- @param role LeaderRole
 function M.cleanup_role(role)
-	for _, task in ipairs(role.tasks) do
+	for _, task in pairs(role.tasks) do
 		stop_task(task)
 	end
 	for port in pairs(role.peers) do

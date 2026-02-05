@@ -49,12 +49,13 @@
 --- @field granted_peer integer? Port of peer granted to execute
 --- @field dispatched_count integer Number of peers task was dispatched to
 --- @field not_capable_count integer Number of task_not_capable responses received
---- @field dispatch_timer uv_timer_t? Timer for dispatch timeout
+--- @field timeout_timer uv_timer_t? Timer for dispatch/execution timeout
 
 --- @class FollowerTaskEntry
 --- @field type_id integer Task type identifier
 --- @field payload table Decoded task payload
---- @field state integer Task state: pending|granted|completed
+--- @field state integer Task state: pending|granted|completed|denied
+--- @field timeout_timer uv_timer_t? Timer for pending/denied cleanup timeout
 
 --- @class IssuerTaskEntry
 --- @field type_id integer Task type identifier

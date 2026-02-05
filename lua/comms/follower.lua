@@ -10,6 +10,15 @@ local constants = require("lua.comms.constants")
 
 local M = {}
 
+--- Stop and clear a task's timeout timer
+--- @param task FollowerTaskEntry? The task to stop timer for
+local function stop_task_timer(task)
+	if task and task.timeout_timer then
+		pcall(uv.clear_timer, task.timeout_timer)
+		task.timeout_timer = nil
+	end
+end
+
 --- Create a new follower role state
 --- @param socket uv_udp_t The bound UDP socket
 --- @param timer uv_timer_t The heartbeat timer
@@ -59,20 +68,37 @@ local function on_task_dispatch(data)
 
 	logger.debug("Task[" .. task_id .. "] dispatch received, type=" .. type_id)
 
-	G.role.tasks[task_id] = {
+	-- Store task with pending timeout in case leader fails to respond
+	local task = {
 		type_id = type_id,
 		payload = payload,
 		state = constants.task_state.pending,
+		timeout_timer = nil,
 	}
+	G.role.tasks[task_id] = task
+
+	-- Set pending timeout - remove task if leader doesn't respond in time
+	task.timeout_timer = uv.set_timeout(constants.TASK_EXECUTION_TIMEOUT, function()
+		local t = G.role.tasks[task_id]
+		if t and t.state == constants.task_state.pending then
+			logger.debug("Task[" .. task_id .. "] pending timeout, removing")
+			G.role.tasks[task_id] = nil
+		end
+	end)
+
 	-- Check if we can execute this task
 	task_module.can_execute(payload, function(capable)
+		local t = G.role.tasks[task_id]
+		if not t then
+			return -- Task was already removed by timeout
+		end
 		if capable then
-			-- Store task locally in case we get granted
 			logger.debug("Task[" .. task_id .. "] sending capable response")
 			send_to_leader(message.pack_task_capable_frame(task_id))
 		else
 			logger.debug("Task[" .. task_id .. "] not capable, sending response")
 			send_to_leader(message.pack_task_not_capable_frame(task_id))
+			stop_task_timer(t)
 			G.role.tasks[task_id] = nil
 		end
 	end)
@@ -86,6 +112,7 @@ local function on_task_granted(data)
 
 	if not task then
 		logger.warn("Task[" .. task_id .. "] granted but not found locally")
+		send_to_leader(message.pack_task_exec_failed_frame(task_id))
 		return
 	end
 
@@ -94,6 +121,9 @@ local function on_task_granted(data)
 		return
 	end
 
+	-- Clear pending timeout timer
+	stop_task_timer(task)
+
 	local task_module = tasks.get(task.type_id)
 	if not task_module then
 		logger.error("Unknown task type: " .. task.type_id)
@@ -101,12 +131,15 @@ local function on_task_granted(data)
 	end
 
 	logger.info("Task[" .. task_id .. "] granted, executing")
-	task.state = constants.task_state.granted
-	--- TODO: respond with a result of the execution
-	---@diagnostic disable-next-line: unused-local
+	task.state = constants.task_state.in_progress
 	task_module.execute(task.payload, function(result)
 		task.state = constants.task_state.completed
 		G.role.tasks[task_id] = nil
+		if result then
+			send_to_leader(message.pack_task_exec_done_frame(task_id))
+		else
+			send_to_leader(message.pack_task_exec_failed_frame(task_id))
+		end
 	end)
 end
 
@@ -114,8 +147,24 @@ end
 --- @param data TaskIdPayload The decoded task denied payload
 local function on_task_denied(data)
 	local task_id = data.id
-	logger.debug("Task[" .. task_id .. "] denied")
-	G.role.tasks[task_id] = nil
+	local task = G.role.tasks[task_id]
+
+	if not task then
+		logger.debug("Task[" .. task_id .. "] denied but not found locally")
+		return
+	end
+
+	logger.debug("Task[" .. task_id .. "] denied, scheduling cleanup")
+
+	-- Clear any existing timer
+	stop_task_timer(task)
+
+	-- Set state to denied and schedule delayed cleanup
+	task.state = constants.task_state.denied
+	task.timeout_timer = uv.set_timeout(constants.TASK_DENIED_CLEANUP_TIMEOUT, function()
+		logger.debug("Task[" .. task_id .. "] denied cleanup complete")
+		G.role.tasks[task_id] = nil
+	end)
 end
 
 --- Follower: Handle pong message from leader (heartbeat response)
@@ -153,7 +202,7 @@ function M.try_init(on_err)
 	local socket, err = uv.bind_as_client(uv.recv_buf(function(buf, port)
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or port ~= G.PORT or cmd_id == nil or payload == nil then
-			logger.debug("recv_msg -> [err] " .. err)
+			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
 			return
 		end
 		message.debug_log_cmd(cmd_id, payload)
@@ -178,7 +227,7 @@ function M.try_init(on_err)
 		end
 		send_to_leader(message.pack_ping_frame(now))
 	end)
-	logger.debug("sendings pings per " .. interval_ms .. "ms")
+	logger.debug("sending pings every " .. interval_ms .. "ms")
 	G.role = new_role(socket, timer)
 	return nil
 end
@@ -187,6 +236,10 @@ end
 --- @param role FollowerRole
 function M.cleanup_role(role)
 	uv.clear_timer(role.heartbeat_timer)
+	-- Clean up all task timers
+	for _, task in pairs(role.tasks) do
+		stop_task_timer(task)
+	end
 end
 
 return M

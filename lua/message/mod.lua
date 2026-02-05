@@ -61,6 +61,14 @@ M.type = {
 	-- from: @leader
 	-- to: @follower
 	task_denied = 0x24,
+	-- purpose: Follower reports task executed successfully.
+	-- from: @follower
+	-- to: @leader
+	task_exec_done = 0x25,
+	-- purpose: Follower reports task execution failed.
+	-- from: @follower
+	-- to: @leader
+	task_exec_failed = 0x26,
 }
 
 --- Reverse lookup table: message type ID -> name
@@ -165,6 +173,20 @@ function M.pack_task_not_capable_frame(id)
 	return frame.pack(M.type.task_not_capable, encode.u32(id))
 end
 
+--- Pack a task exec done frame (follower -> leader)
+--- @param id integer Task ID
+--- @return string frame The packed binary frame
+function M.pack_task_exec_done_frame(id)
+	return frame.pack(M.type.task_exec_done, encode.u32(id))
+end
+
+--- Pack a task exec failed frame (follower -> leader)
+--- @param id integer Task ID
+--- @return string frame The packed binary frame
+function M.pack_task_exec_failed_frame(id)
+	return frame.pack(M.type.task_exec_failed, encode.u32(id))
+end
+
 --- Ping/Pong payload structure
 --- @class PingPongPayload
 --- @field ts integer Timestamp in milliseconds
@@ -214,6 +236,8 @@ function M.unpack_frame(buf)
 		or msg_type == M.type.task_completed
 		or msg_type == M.type.task_failed
 		or msg_type == M.type.task_not_capable
+		or msg_type == M.type.task_exec_done
+		or msg_type == M.type.task_exec_failed
 	then
 		data.id, _, err = encode.unpack_u32(payload, 1)
 	else

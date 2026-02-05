@@ -1,5 +1,5 @@
---- Follower role handlers and helpers.
---- @class CommsFollower
+--- Issuer role handlers and helpers.
+--- @class CommsIssuer
 
 local G = require("lua.G")
 local uv = require("lua.uv_wrapper")
@@ -19,7 +19,7 @@ local M = {}
 --- @return IssuerRole role The new follower role state
 local function new_role(task, shutdown, socket, heartbeat_timer, dispatch_timer)
 	return {
-		id = c.role.follower,
+		id = c.role.issuer,
 		task = task,
 		socket = socket,
 		shutdown = shutdown,
@@ -136,7 +136,7 @@ function M.try_init(task, shutdown, on_err)
 	local socket, err = uv.bind_as_client(uv.recv_buf(function(buf, port)
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or port ~= G.PORT or cmd_id == nil or payload == nil then
-			logger.debug("recv_msg -> [err] " .. err)
+			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
 			return
 		end
 		message.debug_log_cmd(cmd_id, payload)
@@ -159,7 +159,7 @@ function M.try_init(task, shutdown, on_err)
 		end
 		send_to_leader(message.pack_ping_frame(now))
 	end)
-	logger.debug("sendings pings per " .. c.ISSUER_PING_INTERVAL .. "ms")
+	logger.debug("sending pings every " .. c.ISSUER_PING_INTERVAL .. "ms")
 	local dispatch_timer = uv.set_timeout(c.ISSUER_PENDING_TIMEOUT, shutdown_and_try_execute_task)
 	G.role = new_role(task, shutdown, socket, heartbeat_timer, dispatch_timer)
 	dispatch_task_to_leader()
