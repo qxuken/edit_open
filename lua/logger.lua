@@ -42,6 +42,25 @@ function M.set_printer(p)
 	G.print = p
 end
 
+--- Check if a given log level would be logged
+--- @param level LogLevel
+--- @return boolean
+function M.is_enabled(level)
+	return level >= G.log_level
+end
+
+--- Check if TRACE level is enabled
+--- @return boolean
+function M.is_trace()
+	return G.log_level <= M.level.TRACE
+end
+
+--- Check if DEBUG level is enabled
+--- @return boolean
+function M.is_debug()
+	return G.log_level <= M.level.DEBUG
+end
+
 --- Log a message at TRACE level
 --- @param message string The message to log
 function M.trace(message)

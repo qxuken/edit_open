@@ -167,7 +167,9 @@ local function dispatch_task_to_followers(task_id)
 	if not task then
 		return
 	end
-	logger.debug("Task[" .. task_id .. "] dispatching to followers")
+	if logger.is_debug() then
+		logger.debug("Task[" .. task_id .. "] dispatching to followers")
+	end
 	task.state = c.task_state.dispatched
 
 	-- Set up dispatch timeout timer
@@ -186,7 +188,9 @@ local function dispatch_task_to_followers(task_id)
 	task.dispatched_count =
 		broadcast_to_peers(message.pack_task_dispatch_frame(task_id, task.type_id, task.raw_data), task.requester_port)
 	if task.dispatched_count == 0 then
-		logger.debug("Task[" .. task_id .. "] no peers available to dispatch")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] no peers available to dispatch")
+		end
 		cleanup_task(task_id)
 		send_frame_to_peer(task.requester_port, message.pack_task_failed_frame(task.requester_task_id))
 		return
@@ -220,9 +224,11 @@ local function on_task_request(data, requester_port)
 		return
 	end
 
-	logger.debug(
-		"Task[" .. task_id .. "] request received from port " .. tostring(requester_port) .. ", type=" .. type_id
-	)
+	if logger.is_debug() then
+		logger.debug(
+			"Task[" .. task_id .. "] request received from port " .. tostring(requester_port) .. ", type=" .. type_id
+		)
+	end
 
 	G.role.tasks[task_id] = {
 		requester_task_id = requester_task_id,
@@ -274,7 +280,9 @@ local function on_task_capable(data, port)
 	local task = G.role.tasks[task_id]
 
 	if not task then
-		logger.debug("Task[" .. task_id .. "] capable from port " .. port .. " - task not found")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] capable from port " .. port .. " - task not found")
+		end
 		send_frame_to_peer(port, message.pack_task_denied_frame(task_id))
 		return
 	end
@@ -283,7 +291,9 @@ local function on_task_capable(data, port)
 	table.insert(task.capable_peers, port)
 
 	if task.state ~= c.task_state.dispatched then
-		logger.debug("Task[" .. task_id .. "] capable from port " .. port)
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] capable from port " .. port)
+		end
 		return
 	end
 	task.state = c.task_state.granted
@@ -299,27 +309,33 @@ local function on_task_not_capable(data, port)
 	local task = G.role.tasks[task_id]
 
 	if not task then
-		logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - task not found")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - task not found")
+		end
 		return
 	end
 
 	task.not_capable_count = task.not_capable_count + 1
 	if task.state ~= c.task_state.dispatched then
-		logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - wrong state: " .. task.state)
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] not_capable from port " .. port .. " - wrong state: " .. task.state)
+		end
 		return
 	end
 
-	logger.debug(
-		"Task["
-			.. task_id
-			.. "] not_capable from port "
-			.. port
-			.. " ("
-			.. task.not_capable_count
-			.. "/"
-			.. task.dispatched_count
-			.. ")"
-	)
+	if logger.is_debug() then
+		logger.debug(
+			"Task["
+				.. task_id
+				.. "] not_capable from port "
+				.. port
+				.. " ("
+				.. task.not_capable_count
+				.. "/"
+				.. task.dispatched_count
+				.. ")"
+		)
+	end
 
 	if task.not_capable_count >= task.dispatched_count then
 		logger.warn("Task[" .. task_id .. "] all " .. task.dispatched_count .. " followers not capable")
@@ -336,12 +352,16 @@ local function on_task_exec_done(data, port)
 	local task = G.role.tasks[task_id]
 
 	if not task then
-		logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - task not found")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - task not found")
+		end
 		return
 	end
 
 	if task.state ~= c.task_state.granted or task.granted_peer ~= port then
-		logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - wrong state or peer")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] exec_done from port " .. port .. " - wrong state or peer")
+		end
 		return
 	end
 
@@ -358,12 +378,16 @@ local function on_task_exec_failed(data, port)
 	local task = G.role.tasks[task_id]
 
 	if not task then
-		logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - task not found")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - task not found")
+		end
 		return
 	end
 
 	if task.state ~= c.task_state.granted or task.granted_peer ~= port then
-		logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - wrong state or peer")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] exec_failed from port " .. port .. " - wrong state or peer")
+		end
 		return
 	end
 

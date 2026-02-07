@@ -74,7 +74,9 @@ end
 --- @return string? error Error message if all retries exhausted
 function M.run_comms(retries)
 	local retries_left = retries and retries - 1 or 3
-	logger.debug("run_comms: " .. retries_left)
+	if logger.is_debug() then
+		logger.debug("run_comms: " .. retries_left)
+	end
 	if retries_left == 0 then
 		return false, "No more retries, quiting"
 	end
@@ -84,10 +86,14 @@ function M.run_comms(retries)
 	local err
 	err = leader.try_init(M.run_comms)
 	if err ~= nil then
-		logger.trace(err)
+		if logger.is_trace() then
+			logger.trace(err)
+		end
 		err = follower.try_init(M.run_comms)
 		if err ~= nil then
-			logger.trace(err)
+			if logger.is_trace() then
+				logger.trace(err)
+			end
 			return M.run_comms(retries_left)
 		end
 	end
@@ -100,7 +106,9 @@ end
 --- @return string? error Error message if all retries exhausted
 function M.run_task(task, retries)
 	local retries_left = retries and retries - 1 or 3
-	logger.debug("run_task: " .. retries_left)
+	if logger.is_debug() then
+		logger.debug("run_task: " .. retries_left)
+	end
 	if retries_left == 0 then
 		return issuer.try_execute_task(task)
 	end
@@ -118,7 +126,9 @@ function M.run_task(task, retries)
 		return M.run_task(task, retries_left)
 	end)
 	if err ~= nil then
-		logger.trace(err)
+		if logger.is_trace() then
+			logger.trace(err)
+		end
 		return M.run_task(task, retries_left)
 	end
 end

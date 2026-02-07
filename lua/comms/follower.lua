@@ -41,7 +41,9 @@ local function send_to_leader(frame)
 	end
 	G.role.socket:send(frame, nil, nil, function(err)
 		if err ~= nil then
-			logger.debug("send_to_leader error: " .. err)
+			if logger.is_debug() then
+				logger.debug("send_to_leader error: " .. err)
+			end
 		end
 	end)
 end
@@ -66,7 +68,9 @@ local function on_task_dispatch(data)
 		return
 	end
 
-	logger.debug("Task[" .. task_id .. "] dispatch received, type=" .. type_id)
+	if logger.is_debug() then
+		logger.debug("Task[" .. task_id .. "] dispatch received, type=" .. type_id)
+	end
 
 	-- Store task with pending timeout in case leader fails to respond
 	local task = {
@@ -81,7 +85,9 @@ local function on_task_dispatch(data)
 	task.timeout_timer = uv.set_timeout(constants.TASK_EXECUTION_TIMEOUT, function()
 		local t = G.role.tasks[task_id]
 		if t and t.state == constants.task_state.pending then
-			logger.debug("Task[" .. task_id .. "] pending timeout, removing")
+			if logger.is_debug() then
+				logger.debug("Task[" .. task_id .. "] pending timeout, removing")
+			end
 			G.role.tasks[task_id] = nil
 		end
 	end)
@@ -93,10 +99,14 @@ local function on_task_dispatch(data)
 			return -- Task was already removed by timeout
 		end
 		if capable then
-			logger.debug("Task[" .. task_id .. "] sending capable response")
+			if logger.is_debug() then
+				logger.debug("Task[" .. task_id .. "] sending capable response")
+			end
 			send_to_leader(message.pack_task_capable_frame(task_id))
 		else
-			logger.debug("Task[" .. task_id .. "] not capable, sending response")
+			if logger.is_debug() then
+				logger.debug("Task[" .. task_id .. "] not capable, sending response")
+			end
 			send_to_leader(message.pack_task_not_capable_frame(task_id))
 			stop_task_timer(t)
 			G.role.tasks[task_id] = nil
@@ -150,11 +160,15 @@ local function on_task_denied(data)
 	local task = G.role.tasks[task_id]
 
 	if not task then
-		logger.debug("Task[" .. task_id .. "] denied but not found locally")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] denied but not found locally")
+		end
 		return
 	end
 
-	logger.debug("Task[" .. task_id .. "] denied, scheduling cleanup")
+	if logger.is_debug() then
+		logger.debug("Task[" .. task_id .. "] denied, scheduling cleanup")
+	end
 
 	---@diagnostic disable-next-line: param-type-mismatch
 	stop_task_timer(task)
@@ -162,7 +176,9 @@ local function on_task_denied(data)
 	-- Set state to denied and schedule delayed cleanup
 	task.state = constants.task_state.denied
 	task.timeout_timer = uv.set_timeout(constants.TASK_DENIED_CLEANUP_TIMEOUT, function()
-		logger.debug("Task[" .. task_id .. "] denied cleanup complete")
+		if logger.is_debug() then
+			logger.debug("Task[" .. task_id .. "] denied cleanup complete")
+		end
 		G.role.tasks[task_id] = nil
 	end)
 end
@@ -176,7 +192,9 @@ local function on_pong(data)
 	if prev_ts ~= nil then
 		diff = G.role.last_pong_time - prev_ts
 	end
-	logger.debug("Pong received, time_from_last=" .. diff .. "ms, leader_ts=" .. data.ts)
+	if logger.is_debug() then
+		logger.debug("Pong received, time_from_last=" .. diff .. "ms, leader_ts=" .. data.ts)
+	end
 end
 
 --- Route incoming commands to appropriate follower handlers
@@ -202,7 +220,9 @@ function M.try_init(on_err)
 	local socket, err = uv.bind_as_client(uv.recv_buf(function(buf, port)
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or port ~= G.PORT or cmd_id == nil or payload == nil then
-			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
+			if logger.is_debug() then
+				logger.debug("recv_msg -> [err] " .. (err or "unknown"))
+			end
 			return
 		end
 		message.trace_log_cmd(cmd_id, payload)
@@ -222,12 +242,16 @@ function M.try_init(on_err)
 		if not G.role.last_pong_time then
 			G.role.last_pong_time = now
 		elseif (now - G.role.last_pong_time) > constants.HEARTBEAT_TIMEOUT then
-			logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
+			if logger.is_debug() then
+				logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
+			end
 			on_err()
 		end
 		send_to_leader(message.pack_ping_frame(now))
 	end)
-	logger.debug("sending pings every " .. interval_ms .. "ms")
+	if logger.is_debug() then
+		logger.debug("sending pings every " .. interval_ms .. "ms")
+	end
 	G.role = new_role(socket, timer)
 	return nil
 end

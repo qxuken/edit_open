@@ -51,7 +51,9 @@ local function send_to_leader(frame)
 	end
 	G.role.socket:send(frame, nil, nil, function(err)
 		if err ~= nil then
-			logger.debug("send_to_leader error: " .. err)
+			if logger.is_debug() then
+				logger.debug("send_to_leader error: " .. err)
+			end
 			shutdown_and_try_execute_task()
 		end
 	end)
@@ -74,7 +76,9 @@ end
 local function on_task_pending(payload)
 	uv.clear_timer(G.role.dispatch_timer)
 	G.role.dispatch_timer = uv.set_timeout(c.ISSUER_COMPLETION_TIMEOUT, shutdown_and_try_execute_task)
-	logger.debug_dump(payload)
+	if logger.is_debug() then
+		logger.debug_dump(payload)
+	end
 end
 
 local function on_task_complete()
@@ -95,7 +99,9 @@ local function on_pong(data)
 	if prev_ts ~= nil then
 		diff = G.role.last_pong_time - prev_ts
 	end
-	logger.debug("Pong received, time_from_last=" .. diff .. "ms, leader_ts=" .. data.ts)
+	if logger.is_debug() then
+		logger.debug("Pong received, time_from_last=" .. diff .. "ms, leader_ts=" .. data.ts)
+	end
 end
 
 --- Route incoming commands to appropriate follower handlers
@@ -136,7 +142,9 @@ function M.try_init(task, shutdown, on_err)
 	local socket, err = uv.bind_as_client(uv.recv_buf(function(buf, port)
 		local cmd_id, payload, err = message.unpack_frame(buf)
 		if err ~= nil or port ~= G.PORT or cmd_id == nil or payload == nil then
-			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
+			if logger.is_debug() then
+				logger.debug("recv_msg -> [err] " .. (err or "unknown"))
+			end
 			return
 		end
 		message.trace_log_cmd(cmd_id, payload)
@@ -154,12 +162,16 @@ function M.try_init(task, shutdown, on_err)
 		if not G.role.last_pong_time then
 			G.role.last_pong_time = now
 		elseif (now - G.role.last_pong_time) > c.ISSUER_PING_TIMEOUT then
-			logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
+			if logger.is_debug() then
+				logger.debug("Leader timeout: " .. (now - G.role.last_pong_time))
+			end
 			on_err()
 		end
 		send_to_leader(message.pack_ping_frame(now))
 	end)
-	logger.debug("sending pings every " .. c.ISSUER_PING_INTERVAL .. "ms")
+	if logger.is_debug() then
+		logger.debug("sending pings every " .. c.ISSUER_PING_INTERVAL .. "ms")
+	end
 	local dispatch_timer = uv.set_timeout(c.ISSUER_PENDING_TIMEOUT, shutdown_and_try_execute_task)
 	G.role = new_role(task, shutdown, socket, heartbeat_timer, dispatch_timer)
 	dispatch_task_to_leader()

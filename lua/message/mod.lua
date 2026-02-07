@@ -253,6 +253,7 @@ end
 --- @param cmd_id integer The command/message type ID
 --- @param payload table The decoded payload to log
 function M.trace_log_cmd(cmd_id, payload)
+	if not logger.is_trace() then return end
 	logger.trace("cmd = " .. M.get_name(cmd_id))
 	logger.trace_dump(payload)
 	logger.trace("---")

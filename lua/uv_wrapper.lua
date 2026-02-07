@@ -90,18 +90,18 @@ function M.recv_buf(data_callback, error_callback)
 			return
 		end
 		local buf_len = #buf
-		logger.trace("[buf]")
-		logger.trace("len = " .. buf_len)
-		logger.trace(buf)
-		logger.trace("[addr]")
-		logger.trace_dump(addr)
-		if flags ~= nil then
-			logger.trace("[flags]")
-			logger.trace_dump(flags)
+		if logger.is_trace() then
+			logger.trace("[buf]")
+			logger.trace("len = " .. buf_len)
+			logger.trace(buf)
+			logger.trace("[addr]")
+			logger.trace_dump(addr)
+			if flags ~= nil then
+				logger.trace("[flags]")
+				logger.trace_dump(flags)
+			end
+			logger.trace("recv_msg:" .. addr.port .. " -> buf_len = " .. buf_len)
 		end
-
-		logger.trace("recv_msg:" .. addr.port .. " -> buf_len = " .. buf_len)
-		logger.trace(buf)
 
 		data_callback(buf, addr.port)
 	end
