@@ -41,7 +41,7 @@ local function ensure_peer_closed(port)
 		return
 	end
 	G.role.peers[port] = nil
-	uv.clear_timer(peer)
+	pcall(uv.clear_timer, peer)
 end
 
 --- Reset the timeout timer for a peer (called on each ping received)
@@ -258,8 +258,8 @@ local function on_task_request(data, requester_port)
 					return
 				end
 				if result then
-					cleanup_task(task_id)
 					t.state = c.task_state.completed
+					cleanup_task(task_id)
 					send_frame_to_peer(t.requester_port, message.pack_task_completed_frame(t.requester_task_id))
 				else
 					logger.warn("Execution failed")
@@ -453,9 +453,6 @@ end
 function M.cleanup_role(role)
 	for _, task in pairs(role.tasks) do
 		stop_task(task)
-	end
-	for port in pairs(role.peers) do
-		ensure_peer_closed(port)
 	end
 end
 

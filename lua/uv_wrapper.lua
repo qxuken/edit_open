@@ -186,7 +186,7 @@ end
 function M.set_timeout(timeout, callback)
 	local timer = M._internal_uv.new_timer()
 	timer:start(timeout, 0, function()
-		M.clear_timer(timer)
+		pcall(M.clear_timer, timer)
 		callback()
 	end)
 	return timer

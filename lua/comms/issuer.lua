@@ -74,7 +74,7 @@ function M.try_execute_task(task)
 end
 
 local function on_task_pending(payload)
-	uv.clear_timer(G.role.dispatch_timer)
+	pcall(uv.clear_timer, G.role.dispatch_timer)
 	G.role.dispatch_timer = uv.set_timeout(c.ISSUER_COMPLETION_TIMEOUT, shutdown_and_try_execute_task)
 	if logger.is_debug() then
 		logger.debug_dump(payload)
@@ -82,7 +82,7 @@ local function on_task_pending(payload)
 end
 
 local function on_task_complete()
-	shutdown_comms()
+	uv.stop()
 	logger.info("Task complete")
 end
 
@@ -181,8 +181,8 @@ end
 --- Cleanup given role
 --- @param role IssuerRole
 function M.cleanup_role(role)
-	uv.clear_timer(role.dispatch_timer)
-	uv.clear_timer(role.heartbeat_timer)
+	pcall(uv.clear_timer, role.dispatch_timer)
+	pcall(uv.clear_timer, role.heartbeat_timer)
 end
 
 return M

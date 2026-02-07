@@ -95,7 +95,9 @@ function M.can_execute(_, callback)
 end
 
 --- @type OpenFileExecute
-function M.execute() end
+function M.execute(_, callback)
+	callback(false)
+end
 
 --- @param can_execute OpenFileCanExecute
 --- @param execute OpenFileExecute

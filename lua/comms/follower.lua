@@ -259,8 +259,7 @@ end
 --- Cleanup given role
 --- @param role FollowerRole
 function M.cleanup_role(role)
-	uv.clear_timer(role.heartbeat_timer)
-	-- Clean up all task timers
+	pcall(uv.clear_timer, role.heartbeat_timer)
 	for _, task in pairs(role.tasks) do
 		stop_task_timer(task)
 	end

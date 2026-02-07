@@ -42,13 +42,6 @@ function M.set_printer(p)
 	G.print = p
 end
 
---- Check if a given log level would be logged
---- @param level LogLevel
---- @return boolean
-function M.is_enabled(level)
-	return level >= G.log_level
-end
-
 --- Check if TRACE level is enabled
 --- @return boolean
 function M.is_trace()
