@@ -252,10 +252,10 @@ end
 --- Log a command and its payload for debugging
 --- @param cmd_id integer The command/message type ID
 --- @param payload table The decoded payload to log
-function M.debug_log_cmd(cmd_id, payload)
-	logger.debug("cmd = " .. M.get_name(cmd_id))
-	logger.debug_dump(payload)
-	logger.debug("---")
+function M.trace_log_cmd(cmd_id, payload)
+	logger.trace("cmd = " .. M.get_name(cmd_id))
+	logger.trace_dump(payload)
+	logger.trace("---")
 end
 
 return M

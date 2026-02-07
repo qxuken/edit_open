@@ -121,7 +121,7 @@ local function on_task_granted(data)
 		return
 	end
 
-	-- Clear pending timeout timer
+	---@diagnostic disable-next-line: param-type-mismatch
 	stop_task_timer(task)
 
 	local task_module = tasks.get(task.type_id)
@@ -156,7 +156,7 @@ local function on_task_denied(data)
 
 	logger.debug("Task[" .. task_id .. "] denied, scheduling cleanup")
 
-	-- Clear any existing timer
+	---@diagnostic disable-next-line: param-type-mismatch
 	stop_task_timer(task)
 
 	-- Set state to denied and schedule delayed cleanup
@@ -205,7 +205,7 @@ function M.try_init(on_err)
 			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
 			return
 		end
-		message.debug_log_cmd(cmd_id, payload)
+		message.trace_log_cmd(cmd_id, payload)
 		on_command(cmd_id, payload)
 	end, function(err)
 		if err ~= nil then

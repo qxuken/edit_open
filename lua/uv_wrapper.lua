@@ -100,7 +100,7 @@ function M.recv_buf(data_callback, error_callback)
 			logger.trace_dump(flags)
 		end
 
-		logger.debug("recv_msg:" .. addr.port .. " -> buf_len = " .. buf_len)
+		logger.trace("recv_msg:" .. addr.port .. " -> buf_len = " .. buf_len)
 		logger.trace(buf)
 
 		data_callback(buf, addr.port)

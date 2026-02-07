@@ -139,7 +139,7 @@ function M.try_init(task, shutdown, on_err)
 			logger.debug("recv_msg -> [err] " .. (err or "unknown"))
 			return
 		end
-		message.debug_log_cmd(cmd_id, payload)
+		message.trace_log_cmd(cmd_id, payload)
 		on_command(cmd_id, payload)
 	end, function(err)
 		if err ~= nil then
