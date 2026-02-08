@@ -1,3 +1,5 @@
+use std "path add"
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -145,14 +147,27 @@ def install-windows [install_path: string] {
 	let bin = get-binary-name
 	let exe = $install_path | path join $bin
 
+	if not ($env.PATH | any {|it| $it == $install_path}) {
+		print $"Appending ($install_path) to path"
+		$env.PATH = $env.PATH | append $install_path
+		^reg add "HKCU\\Environment" /v PATH /t REG_EXPAND_SZ /d ($env.PATH | str join (char esep)) /f
+	}
+
+	# Register file type
+	print $"Registering ($APP_NAME) in registry..."
+	^reg add $'HKCU\Software\Classes\($APP_NAME)' /ve /t REG_SZ /d $APP_NAME /f
+	# ^reg add $'HKCU\Software\Classes\($APP_NAME)\DefaultIcon' /ve /t REG_SZ /d $'"($exe)",0' /f
+
 	# Register file type
 	print $"Registering file type ($APP_NAME)..."
-	^cmd /c $'ftype ($APP_NAME)="($exe)" ($PROGRAM_COMMAND) "%1"'
+	let open_cmd = $'"($exe)" ($PROGRAM_COMMAND) "%1"'
+	^reg add $'HKCU\Software\Classes\($APP_NAME)\shell\open\command' /ve /t REG_SZ /d $open_cmd /f
 
 	# Associate extensions (probably wont work)
 	for ext in (get-extensions) {
 		print $"  assoc ($ext)=($APP_NAME)"
-		^cmd /c $"assoc ($ext)=($APP_NAME)"
+		^reg add $'HKCU\Software\Classes\($ext)' /ve /t REG_SZ /d $APP_NAME /f
+
 	}
 
 	let editor_val = $'"($exe)" ($PROGRAM_COMMAND)'
