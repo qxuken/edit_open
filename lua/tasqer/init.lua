@@ -62,7 +62,14 @@ function M.setup_wezterm_tasks()
 	local openfile = require("tasqer.tasks.openfile")
 
 	M.register(openfile.setup(function(payload, callback)
-		local path = vim.fn.fnamemodify(payload.path, ":.")
+		local path = vim.uv.fs_realpath(payload.path)
+		if not path then
+			return callback(false)
+		end
+		local cwd = vim.uv.cwd()
+		if not vim.startswith(path, cwd) then
+			return callback(false)
+		end
 		uv.fstat(path, function(err, stat)
 			callback(not err and stat and stat.type == "file")
 		end)
