@@ -24,6 +24,10 @@ tasks.register(require("tasqer.tasks.openfile").setup(function(payload, callback
 		callback(capable)
 	end)
 end, function(payload, callback)
+	local exe = "wezterm"
+	if os.getenv("WSL_DISTRO_NAME") ~= nil then
+		exe = "wezterm.exe"
+	end
 	local cwd = luv.cwd()
 
 	local cursor = ""
@@ -33,7 +37,7 @@ end, function(payload, callback)
 		cursor = string.format([[+"call cursor(%d,%d)" ]], row, col)
 	end
 
-	local cmd = "wezterm cli spawn --cwd " .. cwd .. " nvim " .. cursor .. payload.path
+	local cmd = exe .. " cli spawn --cwd " .. cwd .. " nvim " .. cursor .. payload.path
 	local res = os.execute(cmd)
 	callback(res)
 end))

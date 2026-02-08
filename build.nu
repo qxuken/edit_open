@@ -46,7 +46,7 @@ def get-mime-types []: nothing -> list<string> { $FILE_TYPES | transpose key val
 def get-uttypes    []: nothing -> list<string> { $FILE_TYPES | transpose key value | get value.UTType | uniq }
 
 def get-os []: nothing -> string {
-	sys host | get name
+	uname | get kernel-name
 }
 
 def get-symlink-path []: nothing -> path {
@@ -54,7 +54,7 @@ def get-symlink-path []: nothing -> path {
 }
 
 def get-default-install-path []: nothing -> path {
-	if (get-os) == "Windows" {
+	if (get-os) == "Windows_NT" {
 		if "LOCALAPPDATA" in $env {
 			[$env.LOCALAPPDATA "Programs" $PROGRAM_NAME] | path join
 		} else {
@@ -66,7 +66,7 @@ def get-default-install-path []: nothing -> path {
 }
 
 def get-binary-name []: nothing -> string {
-	if (get-os) == "Windows" { $"($PROGRAM_NAME).exe" } else { $PROGRAM_NAME }
+	if (get-os) == "Windows_NT" { $"($PROGRAM_NAME).exe" } else { $PROGRAM_NAME }
 }
 
 def update-profile [profile_path: path, --remove-only] {
@@ -453,7 +453,7 @@ export def install [--install-path: string, --build (-b)] {
 	install-copy-files $path
 
 	match $os {
-		"Windows" => { install-windows $path },
+		"Windows_NT" => { install-windows $path },
 		"Linux" => { install-linux $path },
 		"Darwin" => { install-macos $path },
 		_ => {
@@ -473,7 +473,7 @@ export def "main uninstall" [--install-path: string] {
 	print $"Uninstalling ($PROGRAM_NAME) from ($path) on ($os)..."
 
 	match $os {
-		"Windows" => { uninstall-windows $path },
+		"Windows_NT" => { uninstall-windows $path },
 		"Linux" => { uninstall-linux $path },
 		"Darwin" => { uninstall-macos $path },
 		_ => {

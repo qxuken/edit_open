@@ -74,7 +74,11 @@ function M.setup_wezterm_tasks()
 				local col = math.max(payload.col, 1)
 				vim.cmd("call cursor(" .. row .. "," .. col .. ")")
 			end
-			vim.system({ "wezterm", "cli", "activate-pane" })
+			local exe = "wezterm"
+			if os.getenv("WSL_DISTRO_NAME") ~= nil then
+				exe = "wezterm.exe"
+			end
+			vim.system({ exe, "cli", "activate-pane" })
 			callback(true)
 		end)
 	end))
