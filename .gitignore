@@ -2,5 +2,5 @@
 *.dSYM
 *.pdb
 
-tasqer.exe
-tasqer
+/tasqer.exe
+/tasqer

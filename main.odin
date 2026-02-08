@@ -2,7 +2,7 @@ package main
 
 import "core:fmt"
 import "core:mem"
-import "core:os"
+import os "core:os/os2"
 import "core:path/filepath"
 import "deps/luajit"
 import "deps/luv"
@@ -12,7 +12,12 @@ _ :: mem
 entry :: "main.lua"
 
 get_lua_resolution_path :: proc() -> cstring {
-	dir := filepath.dir(os.args[0])
+	dir, err := os.get_executable_directory(context.allocator)
+	if err != nil {
+		fmt.eprintln("ERR: Unable to get_executable_path")
+		fmt.eprintln(os.error_string(err))
+		os.exit(1)
+	}
 	defer delete(dir)
 	res_src := transmute([]u8)filepath.join({dir, "lua", "?.lua0"})
 	res_src[len(res_src) - 1] = 0

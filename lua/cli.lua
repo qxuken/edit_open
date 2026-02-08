@@ -1,3 +1,4 @@
+local luv = require("luv")
 local openfile = require("tasqer.tasks.openfile")
 
 local M = {}
@@ -32,6 +33,11 @@ local function parse_openfile_args(args)
 	local path = args[1]
 	if not path then
 		return nil, "openfile requires a path argument"
+	end
+	local err
+	path, err = luv.fs_realpath(path)
+	if not path then
+		return nil, err
 	end
 	local row = tonumber(args[2]) or 1
 	local col = tonumber(args[3]) or 1

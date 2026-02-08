@@ -4,7 +4,7 @@ local tasks = require("tasqer.tasks.mod")
 local comms = require("tasqer.comms.mod")
 local constants = require("tasqer.comms.constants")
 local logger = require("tasqer.logger")
-local cli = require("tasqer.cli")
+local cli = require("cli")
 
 math.randomseed(os.time())
 
