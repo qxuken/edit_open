@@ -30,9 +30,9 @@ static void spawnApplicationTask(NSString *path) {
       @"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
   task.environment = env;
 
-  task.executableURL = [NSURL fileURLWithPath:@"/bin/zsh"];
+  task.executableURL = [NSURL fileURLWithPath:@"/bin/sh"];
   task.arguments = @[
-    @"-lc", [NSString stringWithFormat:@"%@ %@ %@", kCliPath, kCliCmd, path]
+    @"-lc", [NSString stringWithFormat:@"%@ %@ \"%@\"", kCliPath, kCliCmd, path]
   ];
 
   task.standardOutput = log;

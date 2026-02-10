@@ -27,7 +27,7 @@ M.ISSUER_PING_TIMEOUT = 1000
 --- @type integer Base interval between heartbeat pings (ms)
 M.ISSUER_PING_INTERVAL = M.ISSUER_PING_TIMEOUT / 2
 --- @type integer Timeout before considering a leader unable to complete task (ms)
-M.ISSUER_PENDING_TIMEOUT = 200
+M.ISSUER_PENDING_TIMEOUT = 300
 --- @type integer Timeout before considering a leader unable to complete task (ms)
 M.ISSUER_COMPLETION_TIMEOUT = 1000
 

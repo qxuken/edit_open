@@ -16,7 +16,7 @@ const FILE_TYPES = {
 	".lua":  {mime: "text/x-lua",         UTType: "public.source-code"},
 	".py":   {mime: "text/x-python",      UTType: "public.python-script"},
 	".js":   {mime: "text/javascript",    UTType: "com.netscape.javascript-source"},
-	".ts":   {mime: "text/x-typescript",  UTType: "public.source-code"},
+	".ts":   {mime: "text/x-typescript",  UTType: "com.microsoft.typescript"},
 	".c":    {mime: "text/x-csrc",        UTType: "public.c-source"},
 	".h":    {mime: "text/x-chdr",        UTType: "public.c-header"},
 	".cpp":  {mime: "text/x-c++src",      UTType: "public.c-plus-plus-source"},
@@ -32,8 +32,8 @@ const FILE_TYPES = {
 	".toml": {mime: "text/x-toml",        UTType: "public.source-code"},
 	".xml":  {mime: "text/xml",           UTType: "public.xml"},
 	".html": {mime: "text/html",          UTType: "public.html"},
-	".css":  {mime: "text/css",           UTType: "public.source-code"},
-	".md":   {mime: "text/markdown",      UTType: "public.source-code"},
+	".css":  {mime: "text/css",           UTType: "public.css"},
+	".md":   {mime: "text/markdown",      UTType: "net.ia.markdown"},
 	".odin": {mime: "text/plain",         UTType: "public.source-code"},
 }
 
@@ -336,6 +336,11 @@ $"		<dict>
 		for uttype in $uttypes {
 			print $"  duti -s com.($PROGRAM_NAME).editor ($uttype) all"
 			try { run-external duti "-s" $"com.($PROGRAM_NAME).editor" $uttype "all" }
+		}
+		for ext in (get-extensions) {
+			let ext = $ext | str replace "." ""
+			print $"  duti -s com.($PROGRAM_NAME).editor ($ext) all"
+			try { run-external duti "-s" $"com.($PROGRAM_NAME).editor" $ext "all" }
 		}
 	} else {
 		print ""

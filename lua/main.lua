@@ -5,6 +5,7 @@ local comms = require("tasqer.comms.mod")
 local constants = require("tasqer.comms.constants")
 local logger = require("tasqer.logger")
 local cli = require("cli")
+local utils = require("utils")
 
 math.randomseed(os.time())
 
@@ -28,7 +29,9 @@ end, function(payload, callback)
 	if os.getenv("WSL_DISTRO_NAME") ~= nil or os.getenv("OS") == "Windows_NT" then
 		exe = "wezterm.exe"
 	end
-	local args = { "start" }
+	local main_subcommand = { "cli", "spawn" }
+	local failback_subcommand = { "start" }
+	local args = {}
 	local cwd = luv.cwd()
 	if cwd and cwd ~= "/" then
 		table.insert(args, "--cwd")
@@ -43,22 +46,39 @@ end, function(payload, callback)
 	end
 	table.insert(args, payload.path)
 
-	logger.debug("Executing command: " .. exe .. " " .. table.concat(args, " "))
-	--- TODO: Focus window afteer app start
-	local handle, pid = luv.spawn(exe, {
-		args = args,
-		detached = true,
-		stdio = { nil, nil, nil }, -- ignore stdin/out/err
-	}, function(code, signal)
-		if code ~= 0 then
-			logger.error("Failed to execute command " .. code .. " " .. signal)
-		else
-			logger.info("Command executed successfully")
-		end
+	local main_args = utils.tbl_extend(main_subcommand, args)
+	logger.debug("Executing command: " .. exe .. " " .. table.concat(main_args, " "))
+	local timeout = uv.set_timeout(10000, function()
+		logger.debug("Execution timeout reached")
+		callback(false)
 	end)
-	handle:unref()
-	logger.debug("Command executed: " .. pid)
-	callback(true)
+	--- TODO: Focus window afteer app start
+	luv.spawn(exe, {
+		args = main_args,
+		detached = false,
+		stdio = { nil, nil, nil },
+	}, function(main_code)
+		pcall(uv.clear_timer, timeout)
+		if main_code ~= 0 then
+			logger.debug("Command failed with code " .. main_code)
+			local failback_args = utils.tbl_extend(failback_subcommand, args)
+			logger.debug("Executing command: " .. exe .. " " .. table.concat(failback_args, " "))
+			local handle, pid = luv.spawn(exe, {
+				args = failback_args,
+				detached = true,
+				stdio = { nil, nil, nil },
+			}, function(fallback_code, signal)
+				if fallback_code ~= 0 then
+					logger.error("Failed to execute command " .. fallback_code .. " " .. signal)
+				else
+					logger.info("Command executed successfully")
+				end
+			end)
+			handle:unref()
+			logger.debug("Failback command executed: " .. pid)
+		end
+		callback(true)
+	end)
 end))
 
 local type_id, payload = cli.parse_args()
