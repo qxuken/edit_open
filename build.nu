@@ -79,7 +79,9 @@ def update-profile [profile_path: path, --remove-only] {
 
 	print $"Appending EDITOR/VISUAL to ($profile_path)"
 	(if ($profile_path | path exists) {
-		open $profile_path | lines | where ($it | str ends-with $ENV_MARKER) == false
+		open $profile_path
+			| lines
+			| where ($it | str ends-with $ENV_MARKER) == false
 	} else {
 		[]
 	})
@@ -172,10 +174,10 @@ def install-windows [install_path: string] {
 
 	}
 
-	let editor_val = $'"($exe)" ($PROGRAM_COMMAND)'
-	print $"Setting EDITOR=($editor_val)"
-	^reg add "HKCU\\Environment" /v EDITOR /t REG_SZ /d $editor_val /f
-	^reg add "HKCU\\Environment" /v VISUAL /t REG_SZ /d $editor_val /f
+	# let editor_val = $'"($exe)" ($PROGRAM_COMMAND)'
+	# print $"Setting EDITOR=($editor_val)"
+	# ^reg add "HKCU\\Environment" /v EDITOR /t REG_SZ /d $editor_val /f
+	# ^reg add "HKCU\\Environment" /v VISUAL /t REG_SZ /d $editor_val /f
 
 	print ""
 	print "Windows installation complete."
@@ -234,7 +236,7 @@ MimeType=($mime_types | str join ";");
 		}
 	}
 
-	update-profile ~/.profile
+	update-profile ~/.profile --remove-only
 
 	print ""
 	print "Linux installation complete."
@@ -352,7 +354,7 @@ $"		<dict>
 		print "      Or manually set Tasqer.app as the default via Finder > Get Info."
 	}
 
-	update-profile ~/.zprofile
+	update-profile ~/.zprofile --remove-only
 
 	print ""
 	print "macOS installation complete."
@@ -451,7 +453,7 @@ def uninstall-macos [install_path: string] {
 		rm $symlink
 	}
 
-	update-profile "~/.zprofile" --remove-only
+	update-profile ~/.zprofile --remove-only
 
 	# Remove install directory
 	if ($install_path | path exists) {
