@@ -48,7 +48,7 @@ end, function(payload, callback)
 
 	local main_args = utils.tbl_extend(main_subcommand, args)
 	logger.debug("Executing command: " .. exe .. " " .. table.concat(main_args, " "))
-	local timeout = uv.set_timeout(3000, function()
+	local timeout = uv.set_timeout(5000, function()
 		logger.debug("Execution timeout reached")
 		callback(false)
 	end)
